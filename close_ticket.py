@@ -1,18 +1,18 @@
 ﻿#!/usr/bin/env python3
 """
-Non-LLM gate for closing tickets in RomanControllingEverything.
-Only this script may transition tickets to CLOSED.
-Usage: python close_ticket.py <issue_number>
+Non-LLM gate for closing tickets across all twin project repos.
+Usage: python close_ticket.py --repo OWNER/REPO --issue NUMBER [--reason TEXT]
 """
 import subprocess
 import sys
 import re
+import argparse
 
-REPO = "jagmstar/RomanControllingEverything"
+ALLOWED_ROLES = r"(Architect|DevOps|Dev|QA-Engineer|AI-Engineer|UI-UX-Designer|BA|CTO|Reviewer|Audit-Agent|PMO|SEDO-Lead|QA-Lead|DevOps-Lead|Memory-Architect|Memory-Warden|CEO|CMO|ResearchO-Lead|CFO|CISO|CFO-Twin|CEO-Twin|CTO-Twin|CMO-Twin|PMO-Twin)"
 
-def get_comments(issue):
+def get_comments(repo, issue):
     result = subprocess.run(
-        ["gh", "issue", "view", issue, "--repo", REPO, "--json", "comments"],
+        ["gh", "issue", "view", issue, "--repo", repo, "--json", "comments"],
         capture_output=True, text=True
     )
     if result.returncode != 0:
@@ -27,7 +27,7 @@ def has_command_output_evidence(comments):
     for c in comments:
         body = c.get("body", "")
         # Must have role prefix
-        if not re.search(r"^\[(Architect|DevOps|Dev|QA-Engineer|AI-Engineer|UI-UX-Designer|BA|CTO|Reviewer|Audit-Agent)\]", body, re.MULTILINE):
+        if not re.search(r"^\[" + ALLOWED_ROLES + r"\]", body, re.MULTILINE):
             continue
         # Must contain command output markers
         if any(marker in body for marker in ["```", "$ ", "> ", "python ", "pytest ", "git ", "gh "]):
@@ -35,25 +35,27 @@ def has_command_output_evidence(comments):
     return False
 
 def main():
-    if len(sys.argv) != 2:
-        print("Usage: python close_ticket.py <issue_number>")
-        sys.exit(1)
-    issue = sys.argv[1]
-    comments = get_comments(issue)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--repo", required=True)
+    parser.add_argument("--issue", required=True)
+    parser.add_argument("--reason", default="Evidence verified. Closing via non-LLM gate.")
+    args = parser.parse_args()
+
+    comments = get_comments(args.repo, args.issue)
     if comments is None:
         sys.exit(1)
     if not has_command_output_evidence(comments):
-        print(f"FAIL: issue #{issue} lacks role-prefixed command-output evidence")
+        print(f"FAIL: issue #{args.issue} in {args.repo} lacks role-prefixed command-output evidence")
         sys.exit(1)
     result = subprocess.run(
-        ["gh", "issue", "close", issue, "--repo", REPO,
-         "--comment", f"[Gate] Evidence verified. Closing via non-LLM gate."],
+        ["gh", "issue", "close", args.issue, "--repo", args.repo,
+         "--comment", f"[Gate] {args.reason}"],
         capture_output=True, text=True
     )
     if result.returncode != 0:
-        print(f"FAIL: cannot close issue {issue}: {result.stderr}")
+        print(f"FAIL: cannot close issue {args.issue}: {result.stderr}")
         sys.exit(1)
-    print(f"PASS: issue #{issue} closed by gate")
+    print(f"PASS: issue #{args.issue} in {args.repo} closed by gate")
 
 if __name__ == "__main__":
     main()
