@@ -13,7 +13,7 @@ ALLOWED_ROLES = r"(Architect|DevOps|Dev|QA-Engineer|AI-Engineer|UI-UX-Designer|B
 def get_comments(repo, issue):
     result = subprocess.run(
         ["gh", "issue", "view", issue, "--repo", repo, "--json", "comments"],
-        capture_output=True, text=True
+        capture_output=True, text=True, encoding='utf-8'
     )
     if result.returncode != 0:
         print(f"FAIL: cannot fetch issue {issue}: {result.stderr}")
@@ -50,7 +50,7 @@ def main():
     result = subprocess.run(
         ["gh", "issue", "close", args.issue, "--repo", args.repo,
          "--comment", f"[Gate] {args.reason}"],
-        capture_output=True, text=True
+        capture_output=True, text=True, encoding='utf-8'
     )
     if result.returncode != 0:
         print(f"FAIL: cannot close issue {args.issue}: {result.stderr}")
